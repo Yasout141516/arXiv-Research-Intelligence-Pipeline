@@ -1,0 +1,22 @@
+# Data pipeline
+pandas==2.2.3
+numpy==2.1.3
+
+# Visualisation
+matplotlib==3.9.2
+
+# RAG: embeddings + vector store
+sentence-transformers==3.3.1
+chromadb==0.5.23
+
+# LLM inference
+groq==0.13.1
+python-dotenv==1.0.1
+
+# API layer
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+
+# Evaluation harness
+requests==2.32.3

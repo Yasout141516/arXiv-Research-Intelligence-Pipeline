@@ -1,0 +1,24 @@
+# --- Secrets ---
+.env
+
+# --- Large source data (see README for download instructions) ---
+data/kaggle_arxiv.csv
+sampled-arxiv-metadata-oai-snapshot.csv
+data/papers_raw.json
+*.zip
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Editors / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
