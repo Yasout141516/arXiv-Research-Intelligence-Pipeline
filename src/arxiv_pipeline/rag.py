@@ -202,9 +202,19 @@ def generate_answer(question: str, chunks: list[dict]) -> str:
             "content": PROMPT_TEMPLATE.format(context=context, question=question),
         }],
         temperature=0.2,
-        max_tokens=512,
+        max_tokens=config.MAX_ANSWER_TOKENS,
     )
-    return response.choices[0].message.content.strip()
+
+    choice = response.choices[0]
+    answer = (choice.message.content or "").strip()
+    if not answer:
+        # A reasoning model that exhausts its budget mid-thought returns an
+        # empty content field. Say so rather than recording a blank answer.
+        raise RuntimeError(
+            f"Model returned no answer (finish_reason={choice.finish_reason}); "
+            f"MAX_ANSWER_TOKENS={config.MAX_ANSWER_TOKENS} may be too low."
+        )
+    return answer
 
 
 def answer_question(

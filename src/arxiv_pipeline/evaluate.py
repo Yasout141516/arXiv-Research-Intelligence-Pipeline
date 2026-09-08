@@ -11,15 +11,34 @@ the answer text, so a timeout is distinguishable from a genuinely poor answer.
 import argparse
 import json
 import time
+import unicodedata
 
 import requests
 
 from . import config
 
 DEFAULT_SERVER = "http://127.0.0.1:8000"
-REQUEST_TIMEOUT = 30
+# Generous because the embedding model loads lazily: the first request against
+# a cold server pays a one-time ~25s model load, while every request after it
+# answers in a couple of seconds.
+REQUEST_TIMEOUT = 90
 # The Groq free tier rate-limits, so pace the requests.
 PAUSE_SECONDS = 4
+
+
+def normalise(text: str) -> str:
+    """Fold typography so the grader scores content, not punctuation.
+
+    The model writes "Vision-Transformer" with a U+2011 non-breaking hyphen and
+    "over-fitting" for "overfitting", so a raw substring test scored 0 hits on
+    answers that plainly contained the expected terms. Unicode dashes and
+    spaces are folded to ASCII, then hyphens are dropped entirely so
+    "weight decay", "weight-decay" and "weightdecay" all match.
+    """
+    folded = unicodedata.normalize("NFKD", text.lower())
+    # Keep only alphanumerics, so "vision transformer", "Vision-Transformer"
+    # and "Vision‑Transformer" all reduce to the same string.
+    return "".join(ch for ch in folded if ch.isalnum())
 
 
 def grade(answer: str, grading: dict | None) -> dict | None:
@@ -29,8 +48,8 @@ def grade(answer: str, grading: dict | None) -> dict | None:
 
     expected = grading.get("must_contain_any", [])
     minimum = grading.get("min_keyword_hits", 1)
-    lowered = answer.lower()
-    hits = [term for term in expected if term.lower() in lowered]
+    lowered = normalise(answer)
+    hits = [term for term in expected if normalise(term) in lowered]
 
     return {
         "type": "keyword_match",

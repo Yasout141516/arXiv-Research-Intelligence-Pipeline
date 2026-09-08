@@ -92,6 +92,12 @@ CHUNK_OVERLAP = 40
 EMBED_BATCH_SIZE = 500
 DEFAULT_N_RESULTS = 5
 
+# GROQ_MODEL is a reasoning model: it spends completion tokens on an internal
+# reasoning channel before emitting any answer. At 512 the reasoning alone
+# exhausted the budget and returned an empty answer, so this must leave room
+# for both. Measured: reasoning runs ~400-700 tokens, answers ~300-700.
+MAX_ANSWER_TOKENS = 1500
+
 
 def groq_api_key() -> str | None:
     """Read the key at call time, so a server picks up a rotated value."""
