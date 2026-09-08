@@ -24,8 +24,12 @@ def scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> object:
     return conn.execute(sql, params).fetchone()[0]
 
 
-def replace_table(conn: sqlite3.Connection, name: str, select_sql: str) -> None:
-    """(Re)build `name` from a SELECT, so the stage is safe to re-run."""
+def replace_table(conn: sqlite3.Connection, name: str, select_sql: str) -> int:
+    """(Re)build `name` from a SELECT and return its row count.
+
+    Dropping first makes the stage idempotent. Reporting is left to the
+    caller so this stays usable outside a console pipeline.
+    """
     conn.execute(f"DROP TABLE IF EXISTS {name};")
     conn.execute(f"CREATE TABLE {name} AS {select_sql}")
-    print(f"  {name:<20} built ({scalar(conn, f'SELECT COUNT(*) FROM {name}'):,} rows)")
+    return scalar(conn, f"SELECT COUNT(*) FROM {name}")

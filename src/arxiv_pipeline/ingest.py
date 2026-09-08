@@ -8,30 +8,26 @@ import pandas as pd
 from . import config
 from .db import connect
 
-RAW_SCHEMA = """
-    CREATE TABLE raw_papers (
-        arxiv_id         TEXT PRIMARY KEY,
-        title            TEXT,
-        abstract         TEXT,
-        authors          TEXT,
-        categories       TEXT,
-        primary_category TEXT,
-        submitted        TEXT,
-        updated          TEXT,
-        journal_ref      TEXT,
-        doi              TEXT,
-        comment          TEXT
-    );
-"""
+
+def raw_schema() -> str:
+    """DDL for the landing table, generated from the configured schema."""
+    columns = ",\n        ".join(
+        f"{name} TEXT" + (" PRIMARY KEY" if name == "arxiv_id" else "")
+        for name in config.PAPER_COLUMNS
+    )
+    return f"CREATE TABLE {config.RAW_TABLE} (\n        {columns}\n    );"
 
 
 def load_filtered_papers() -> pd.DataFrame:
-    """Stream the snapshot, keeping rows in any target category."""
+    """Stream the snapshot, keeping rows cross-listed in any target category."""
     pattern = "|".join(config.TARGET_CATEGORIES)
     chunks = [
         chunk[chunk["categories"].str.contains(pattern, na=False)]
         for chunk in pd.read_csv(
-            config.RAW_CSV, chunksize=config.CHUNK_ROWS, dtype={"id": str}
+            config.RAW_CSV,
+            chunksize=config.CHUNK_ROWS,
+            usecols=config.RAW_CSV_USECOLS,
+            dtype={"id": str},
         )
     ]
     return pd.concat(chunks, ignore_index=True)
@@ -73,7 +69,7 @@ def run() -> None:
 
     with connect() as conn:
         conn.execute(f"DROP TABLE IF EXISTS {config.RAW_TABLE};")
-        conn.execute(RAW_SCHEMA)
+        conn.execute(raw_schema())
         sample.to_sql(config.RAW_TABLE, conn, if_exists="append", index=False)
     print(f"  Saved DB   -> {config.DB_PATH.name} (table: {config.RAW_TABLE})")
 

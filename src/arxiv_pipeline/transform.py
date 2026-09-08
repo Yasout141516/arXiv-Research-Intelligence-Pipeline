@@ -77,13 +77,13 @@ CATEGORY_STATS_SQL = """
     ORDER BY total_papers DESC
 """
 
-YEARLY_TRENDS_SQL = """
+YEARLY_TRENDS_SQL = f"""
     SELECT
         submitted_year   AS year,
         primary_category AS category,
         COUNT(*)         AS paper_count
     FROM papers
-    WHERE submitted_year BETWEEN 1990 AND 2026
+    WHERE submitted_year BETWEEN {config.MIN_YEAR} AND {config.MAX_YEAR}
     GROUP BY submitted_year, primary_category
     ORDER BY submitted_year, paper_count DESC
 """
@@ -126,6 +126,9 @@ AUTHOR_STATS_SQL = """
     ORDER BY paper_count DESC
 """
 
+# Insertion order is dependency order: the aggregates all read `papers`.
+# This dict is the single source of which tables the warehouse contains;
+# `quality` reads its keys rather than keeping a parallel list.
 TABLE_QUERIES = {
     "papers": PAPERS_SQL,
     "category_stats": CATEGORY_STATS_SQL,
@@ -138,8 +141,9 @@ TABLE_QUERIES = {
 def run() -> None:
     print("Transforming raw_papers into analysis tables...")
     with connect() as conn:
-        for name in config.DERIVED_TABLES:
-            replace_table(conn, name, TABLE_QUERIES[name])
+        for name, select_sql in TABLE_QUERIES.items():
+            rows = replace_table(conn, name, select_sql)
+            print(f"  {name:<20} built ({rows:,} rows)")
 
         print("\nSample of category_stats:")
         for row in conn.execute("SELECT * FROM category_stats LIMIT 5"):

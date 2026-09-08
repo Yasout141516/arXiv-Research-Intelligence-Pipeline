@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arxiv-pipeline"
+version = "1.0.0"
+description = "An end-to-end arXiv data pipeline with a retrieval-augmented question-answering API"
+readme = "README.md"
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[project.urls]
+Repository = "https://github.com/Yasout141516/arXiv-Research-Intelligence-Pipeline"
+
+# Dependencies stay pinned in requirements.txt so there is one list, not two.
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.packages.find]
+where = ["src"]
