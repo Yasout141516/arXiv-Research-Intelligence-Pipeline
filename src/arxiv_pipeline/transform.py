@@ -1,4 +1,4 @@
-"""Stage 2 — clean `raw_papers` into a star of analysis-ready tables.
+"""Stage 2 â€” clean `raw_papers` into a star of analysis-ready tables.
 
 Builds one master table (`papers`) with derived fields, then four aggregate
 tables the visualisation and API layers read directly. Every table is
@@ -98,32 +98,50 @@ PUBLICATION_STATUS_SQL = """
     ORDER BY primary_category, pub_status
 """
 
-# `top_category` is the category an author publishes in most. A window
-# function ranks each author's categories in one pass, which avoids the
-# per-author correlated subquery a naive MODE() workaround would need.
+# `top_category` is the category an author publishes in most.
+#
+# Aggregate per (author, category) first, then window over that small result.
+# Joining the ranked categories back to `papers` instead costs ~1,200x more
+# (measured 61s vs 52ms at 5k rows): `papers.first_author` is unindexed, so
+# the join degrades into a nested scan of ~24M row visits.
+#
+# Ties are broken by category name so the output is reproducible — without it,
+# an author with one paper in each of two categories gets an arbitrary winner
+# that can change between runs.
 AUTHOR_STATS_SQL = """
-    WITH ranked_categories AS (
+    WITH per_category AS (
         SELECT
             first_author,
             primary_category,
-            ROW_NUMBER() OVER (
-                PARTITION BY first_author ORDER BY COUNT(*) DESC
-            ) AS rank
+            COUNT(*)            AS n,
+            MIN(submitted_year) AS min_year,
+            MAX(submitted_year) AS max_year
         FROM papers
         WHERE TRIM(COALESCE(first_author, '')) != ''
         GROUP BY first_author, primary_category
+    ),
+    ranked AS (
+        SELECT
+            first_author,
+            primary_category,
+            SUM(n)        OVER (PARTITION BY first_author) AS paper_count,
+            MIN(min_year) OVER (PARTITION BY first_author) AS first_year,
+            MAX(max_year) OVER (PARTITION BY first_author) AS last_year,
+            ROW_NUMBER()  OVER (
+                PARTITION BY first_author
+                ORDER BY n DESC, primary_category
+            ) AS rank
+        FROM per_category
     )
     SELECT
-        p.first_author            AS author,
-        COUNT(*)                  AS paper_count,
-        MIN(p.submitted_year)     AS first_year,
-        MAX(p.submitted_year)     AS last_year,
-        r.primary_category        AS top_category
-    FROM papers p
-    JOIN ranked_categories r
-      ON r.first_author = p.first_author AND r.rank = 1
-    GROUP BY p.first_author
-    ORDER BY paper_count DESC
+        first_author     AS author,
+        paper_count,
+        first_year,
+        last_year,
+        primary_category AS top_category
+    FROM ranked
+    WHERE rank = 1
+    ORDER BY paper_count DESC, author
 """
 
 # Insertion order is dependency order: the aggregates all read `papers`.

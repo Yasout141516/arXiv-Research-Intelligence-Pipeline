@@ -109,10 +109,15 @@ CHECKS = [
         "- (SELECT COUNT(*) FROM papers)",
         detail=RECONCILES,
     ),
+    # `NOT IN` lets SQLite build one ephemeral index over the subquery, where
+    # the equivalent correlated NOT EXISTS re-scans unindexed `papers` per
+    # author (measured 22ms vs 25s). The IS NOT NULL guard is required, not
+    # cosmetic: a single NULL in the subquery makes `NOT IN` false for every
+    # row, which would silently turn this check into a no-op.
     Check(
         "no orphan authors in author_stats",
-        "SELECT COUNT(*) FROM author_stats a "
-        "WHERE NOT EXISTS (SELECT 1 FROM papers p WHERE p.first_author = a.author)",
+        "SELECT COUNT(*) FROM author_stats WHERE author NOT IN "
+        "(SELECT first_author FROM papers WHERE first_author IS NOT NULL)",
         detail="{n:,} authors absent from papers",
     ),
 ]
